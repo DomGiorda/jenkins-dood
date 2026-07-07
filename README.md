@@ -1,6 +1,7 @@
 # Jenkins Docker-Outside-of-Docker (DooD)
+![Build and Publish](https://github.com/domgiorda/jenkins-dood/actions/workflows/main.yml/badge.svg)
 
-This repository contains a custom Jenkins Docker image configured for **Docker-Outside-of-Docker (DooD)**. It allows Jenkins to interact with the host system's Docker daemon, enabling you to build, run, and manage Docker containers from within your Jenkins pipelines without the overhead and nesting issues of Docker-in-Docker (DinD).
+This is a custom Jenkins Docker image configured for **Docker-Outside-of-Docker (DooD)**. It allows Jenkins to interact with the host system's Docker daemon, enabling you to build, run, and manage Docker containers from within your Jenkins pipelines without the overhead and nesting issues of Docker-in-Docker (DinD).
 
 ## Why and What is it used for?
 
