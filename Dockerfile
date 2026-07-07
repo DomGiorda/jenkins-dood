@@ -12,8 +12,8 @@ ARG DOCKER_CLI_VERSION=5:27.3.1-1~debian.12~bookworm
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl && \
+        ca-certificates=20250419 \
+        curl=8.14.1-2+deb13u3 && \
     install -m 0755 -d /usr/share/keyrings && \
     curl -fsSLo /usr/share/keyrings/docker-archive-keyring.asc \
         https://download.docker.com/linux/debian/gpg && \
