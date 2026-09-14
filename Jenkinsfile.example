@@ -1,0 +1,56 @@
+// Ejemplo 1: Utilizar la etiqueta preconfigurada en Jenkins (Manage Jenkins -> Clouds -> Kubernetes)
+pipeline {
+    agent {
+        label 'k8s-agent'
+    }
+    stages {
+        stage('Hola Kubernetes') {
+            steps {
+                sh 'echo "Ejecutando en un Pod dinámico y efímero en Minikube!"'
+                sh 'uname -a'
+            }
+        }
+    }
+}
+
+/*
+// Ejemplo 2: Definir la plantilla del Pod efímero directamente en el Jenkinsfile (podTemplate dinámico)
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    some-label: jenkins-build
+spec:
+  containers:
+  - name: node
+    image: node:18-alpine
+    command:
+    - cat
+    tty: true
+  - name: maven
+    image: maven:3.8.6-openjdk-11
+    command:
+    - cat
+    tty: true
+'''
+        }
+    }
+    stages {
+        stage('Build con Node y Maven') {
+            steps {
+                container('node') {
+                    sh 'node -v'
+                    sh 'npm -v'
+                }
+                container('maven') {
+                    sh 'mvn -v'
+                }
+            }
+        }
+    }
+}
+*/

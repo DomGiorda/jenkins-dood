@@ -1,0 +1,20 @@
+# Valores predeterminados para jenkins-agent-rbac.
+
+namespace: jenkins
+
+serviceAccount:
+  create: true
+  name: jenkins-agent-sa
+  secretName: jenkins-agent-sa-token
+
+rbac:
+  create: true
+  roleName: jenkins-agent-role
+  bindingName: jenkins-agent-binding
+
+agentDefaults:
+  image: "jenkins/inbound-agent:latest"
+  cpuRequest: "200m"
+  cpuLimit: "1"
+  memoryRequest: "256Mi"
+  memoryLimit: "1Gi"

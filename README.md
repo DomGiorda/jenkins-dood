@@ -1,53 +1,158 @@
-# Jenkins Docker-Outside-of-Docker (DooD)
+# Jenkins Docker-Outside-of-Docker (DooD) & Ephemeral Kubernetes Agents
+
 ![Build and Publish](https://github.com/domgiorda/jenkins-dood/actions/workflows/main.yml/badge.svg)
 
-This is a custom Jenkins Docker image configured for **Docker-Outside-of-Docker (DooD)**. It allows Jenkins to interact with the host system's Docker daemon, enabling you to build, run, and manage Docker containers from within your Jenkins pipelines without the overhead and nesting issues of Docker-in-Docker (DinD).
+This repository provides a production-ready Jenkins deployment featuring:
+1. **Docker-Outside-of-Docker (DooD)**: Execute Docker commands inside pipelines by sharing the host Docker/Podman daemon socket.
+2. **Dynamic & Ephemeral Kubernetes Agents**: Automatically provision build Pods on-demand in a Kubernetes cluster (e.g., Minikube in WSL2), which spin up for a build and terminate immediately upon completion.
 
-## Why and What is it used for?
+---
 
-When running Jenkins in a containerized environment, you often need to run Docker commands inside Jenkins pipelines (e.g., building application images, running tests inside containers, and pushing to registries).
-
-There are two primary patterns:
-1. **Docker-in-Docker (DinD):** Runs a complete, isolated Docker daemon inside the Jenkins container. It requires privileged mode, which poses security risks, and can lead to storage driver/caching issues.
-2. **Docker-Outside-of-Docker (DooD):** Shares the host's Docker daemon by mounting `/var/run/docker.sock`. Inside the Jenkins container, we only need the Docker CLI (command-line interface) to communicate with the host daemon. This is cleaner, faster, shares the host's image cache, and is generally preferred for CI/CD environments.
-
-This repository automates the build of the custom Jenkins image with the Docker CLI installed and pre-configured plugins (like `docker-workflow` and `docker-plugin`), publishing it directly to GitHub Container Registry (GHCR).
-
-## Repository Structure
+## 📐 Project Architecture & Structure
 
 ```text
 jenkins-dood/
 ├── .github/
 │   └── workflows/
-│       └── main.yml        # CI/CD Pipeline (GitHub Actions)
-├── Dockerfile              # Custom Jenkins image definition
-├── docker-compose.yml      # Example deployment file for users
-└── README.md               # Documentation
+│       └── main.yml                  # GitHub Actions CI/CD Pipeline
+├── k8s/
+│   ├── rbac.yaml                     # Kubernetes ServiceAccount, Secret & RBAC Manifests
+│   └── helm/
+│       └── agent-rbac/               # Helm Chart for Jenkins Agent RBAC
+│           ├── Chart.yaml
+│           ├── values.yaml
+│           └── templates/
+│               └── rbac.yaml
+├── scripts/
+│   ├── get-k8s-jenkins-info.ps1      # PowerShell helper script to extract API, CA & Token
+│   └── get-k8s-jenkins-info.sh       # Bash helper script for Linux / WSL2
+├── Dockerfile                        # Custom Jenkins LTS image with Docker CLI & Kubernetes plugin
+├── docker-compose.yml                # Docker / Podman Compose deployment
+├── Jenkinsfile.example               # Declarative Pipeline example with dynamic Pod agents
+└── README.md                         # Documentation
 ```
 
-## How to Run Jenkins (DooD)
+---
 
-An example `docker-compose.yml` is provided to easily spin up the environment:
+## 🚀 Quick Start Guide
 
-```yaml
-services:
-  jenkins:
-    image: ghcr.io/domgiorda/jenkins-dood:latest
-    container_name: jenkins-dood
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-      - "50000:50000"
-    volumes:
-      - jenkins_data:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-    user: "root"
+### 1. Run Jenkins Controller (DooD)
 
-volumes:
-  jenkins_data:
-```
+Start Jenkins using Docker Compose or Podman Compose:
 
-Start the container with:
 ```bash
 docker compose up -d
+# Or using Podman:
+podman compose up -d
 ```
+
+Access Jenkins at `http://localhost:8080`.
+
+---
+
+### 2. Prepare Kubernetes (Minikube) & RBAC
+
+Start your Minikube cluster:
+```bash
+minikube start
+```
+
+Deploy the required `ServiceAccount` (`jenkins-agent-sa`) and RBAC permissions in the `jenkins` namespace using **kubectl** or **Helm**:
+
+**Option A: Using raw Kubernetes manifests**
+```bash
+kubectl apply -f ./k8s/rbac.yaml
+```
+
+**Option B: Using Helm Chart**
+```bash
+helm upgrade --install jenkins-agent-rbac ./k8s/helm/agent-rbac --namespace jenkins --create-namespace
+```
+
+---
+
+### 3. Extract Kubernetes Connection Info
+
+Run the helper script from your terminal to automatically generate connection details (API Server URL, CA Certificate, and ServiceAccount JWT Token):
+
+**In WSL2 / Linux:**
+```bash
+chmod +x ./scripts/get-k8s-jenkins-info.sh
+./scripts/get-k8s-jenkins-info.sh
+```
+
+**In Windows (PowerShell):**
+```powershell
+.\scripts\get-k8s-jenkins-info.ps1
+```
+
+---
+
+### 4. Network Setup for WSL2 / Podman (Bridge Setup)
+
+When running Jenkins in **Podman/Docker on Windows** and Minikube inside **WSL2 Ubuntu**, loopback (`127.0.0.1`) refers to the Jenkins container itself. 
+
+To bridge traffic between Minikube Pods and Jenkins without needing Windows Administrator firewall privileges, run `socat` in WSL2:
+
+```bash
+# In WSL2: Listen on free ports (8888 & 50001) and forward to Jenkins (8080 & 50000)
+socat TCP-LISTEN:8888,fork,reuseaddr TCP:127.0.0.1:8080 &
+socat TCP-LISTEN:50001,fork,reuseaddr TCP:127.0.0.1:50000 &
+```
+
+> **Note:** Inside Minikube, `host.minikube.internal` resolves to `10.255.255.254` (the WSL2 host IP), allowing Minikube Pods to communicate with `socat` seamlessly.
+
+---
+
+### 5. Configure Kubernetes Cloud in Jenkins UI
+
+1. Open Jenkins: `http://localhost:8080`
+2. Go to **Manage Jenkins** -> **Clouds** -> **New Cloud** -> **Kubernetes**.
+3. Fill in the following fields:
+   - **Cloud Name**: `minikube`
+   - **Kubernetes URL**: `http://host.minikube.internal:8888` (or `http://<WSL_IP>:8443` if using `kubectl proxy`)
+   - **Disable https certificate check**: Check this box if using HTTP or self-signed certs.
+   - **Kubernetes Namespace**: `jenkins`
+   - **Credentials**: Click **Add** -> **Jenkins** -> Kind: **Secret text** -> Paste the JWT Token generated by the script.
+   - **Jenkins URL**: `http://host.minikube.internal:8888`
+   - **Jenkins tunnel**: `host.minikube.internal:50001` (or check **WebSocket** `[x]` to avoid using tunnel ports).
+
+#### ⚠️ Critical Pod Template Setting
+Under **Pod Templates** -> **k8s-agent** -> **Containers** -> **jnlp**:
+- **Command to run**: Must be **EMPTY** (Leave blank).
+- **Arguments to pass**: Must be **EMPTY** (Leave blank).
+
+*(If `Command` is set to `sleep`, the `jenkins/inbound-agent` container will not start its agent process).*
+
+---
+
+### 6. Run Pipelines with Dynamic Agents
+
+Create a Pipeline job in Jenkins using `Jenkinsfile.example`:
+
+```groovy
+pipeline {
+    agent {
+        label 'k8s-agent'
+    }
+    stages {
+        stage('Build in Minikube') {
+            steps {
+                sh 'echo "Running inside a dynamic & ephemeral Pod in Minikube!"'
+                sh 'uname -a'
+            }
+        }
+    }
+}
+```
+
+When you click **Build Now**, Jenkins automatically provisions an ephemeral Pod in Minikube, executes the job steps, and destroys the Pod upon completion.
+
+---
+
+## ❓ FAQ & Troubleshooting
+
+### Why not use macOS Docker images as agents?
+* Docker and Kubernetes rely on the **Linux Kernel** (namespaces and cgroups). Native macOS Docker containers do not exist.
+* Apple's EULA also prohibits running macOS on non-Apple hardware.
+* For **iOS / Xcode / macOS builds**, connect a physical Mac (or cloud Mac VM via [Tart](https://tart.run) / AWS EC2 Mac) to Jenkins as a dedicated static SSH/JNLP node.

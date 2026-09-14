@@ -1,4 +1,4 @@
-ARG JENKINS_VERSION=2.571
+ARG JENKINS_VERSION=2.578
 
 FROM jenkins/jenkins:${JENKINS_VERSION}
 
@@ -29,7 +29,8 @@ USER jenkins
 
 RUN jenkins-plugin-cli --plugins \
     docker-workflow:634.vedc7242b_eda_7 \
-    docker-plugin:1316.v75635a_002b_0a_
+    docker-plugin:1316.v75635a_002b_0a_ \
+    kubernetes:4307.v8288591f86b_1
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -fsSL http://localhost:8080/login || exit 1

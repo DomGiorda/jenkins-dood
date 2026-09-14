@@ -1,0 +1,6 @@
+apiVersion: v2
+name: jenkins-agent-rbac
+description: Helm chart para desplegar los recursos y RBAC necesarios para agentes dinámicos de Jenkins en Kubernetes/Minikube.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
