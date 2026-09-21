@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - "v*"               # Trigger in releases: v2.581, v1.0.0, etc.
+      - "v*"               # Trigger in releases: v2.582, v1.0.0, etc.
   pull_request:
     branches:
       - main               # Validate build in PRs, but DO NOT push
