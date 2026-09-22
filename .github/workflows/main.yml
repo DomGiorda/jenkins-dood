@@ -6,6 +6,7 @@ on:
       - main
     tags:
       - "v*"               # Trigger in releases: v2.582, v1.0.0, etc.
+      - "[0-9]+.*"         # Trigger in numeric tags: 2.582, 1.0.0, etc.
   pull_request:
     branches:
       - main               # Validate build in PRs, but DO NOT push
@@ -35,10 +36,15 @@ jobs:
       contents: read
       packages: write
       security-events: write           # To upload Trivy results to GitHub Security
+      id-token: write                  # Required for Sigstore/Cosign keyless OIDC signing
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3  # Required for multi-platform
@@ -66,23 +72,18 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=false
           tags: |
             # In PRs: only the PR number
             type=ref,event=pr
 
-            # In push to main: long sha + edge + latest + jenkins versions
-            type=sha,format=long,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=${{ steps.jenkins_version.outputs.version }},enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=v${{ steps.jenkins_version.outputs.version }},enable=${{ github.ref == 'refs/heads/main' }}
+            # In push to main: only <jenkins_version>-edge
+            type=raw,value=${{ steps.jenkins_version.outputs.version }}-edge,enable=${{ github.ref == 'refs/heads/main' }}
 
-            # In releases: tags like v2.581, v1.0.0
+            # In releases: custom tag + latest
             type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
 
       - name: Build and push
         id: build
@@ -97,12 +98,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true             # SLSA provenance for supply chain
+          sbom: true                   # Generate SBOM attestation
+
+      - name: Sign published Docker image
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
       - name: Scan image with Trivy
         if: github.event_name != 'pull_request'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:edge
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
