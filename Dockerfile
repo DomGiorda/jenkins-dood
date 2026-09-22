@@ -9,6 +9,7 @@ LABEL org.opencontainers.image.title="jenkins-dood" \
 USER root
 
 ARG DOCKER_CLI_VERSION=5:29.8.0-1~debian.13~trixie
+ARG DOCKER_BUILDX_VERSION=0.37.1-1~debian.13~trixie
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -22,7 +23,8 @@ RUN apt-get update && \
         > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        "docker-ce-cli=${DOCKER_CLI_VERSION}" && \
+        "docker-ce-cli=${DOCKER_CLI_VERSION}" \
+        "docker-buildx-plugin=${DOCKER_BUILDX_VERSION}" && \
     rm -rf /var/lib/apt/lists/*
 
 USER jenkins
