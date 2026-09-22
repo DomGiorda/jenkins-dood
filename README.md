@@ -51,3 +51,13 @@ Start the container with:
 ```bash
 docker compose up -d
 ```
+
+## Security Considerations (DooD & Docker Socket)
+
+> [!WARNING]
+> **Privilege Escalation Risk:** Mounting `/var/run/docker.sock` grants the container direct access to the host's Docker daemon. Anyone with permissions to execute Docker commands inside Jenkins effectively has **root-equivalent privileges on the host system** (e.g., capable of mounting arbitrary host paths or launching privileged containers).
+
+### Best Practices & Mitigations:
+- **Isolated Environments:** Only use this DooD configuration in trusted, dedicated, or local CI/CD environments. Never deploy on shared, untrusted multi-tenant host nodes.
+- **Pipeline Governance:** Restrict pipeline authoring and execution permissions inside Jenkins to trusted contributors.
+- **Socket Proxy:** For stricter isolation, consider placing a proxy like `tecnativa/docker-socket-proxy` between Jenkins and the Docker daemon to restrict allowed API endpoints (e.g., blocking volume mounts or privileged mode).
